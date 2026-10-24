@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>LUMIQ·NEO</title>
+<link href="https://fonts.googleapis.com/css2?family=Monoton&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --honor-yellow: #FFD60A;
+    --honor-yellow-press: #E6C100;
+    --bg: #F2F2F7;
+    --text: #1C1C1E;
+    --text-muted: #8E8E93;
+    --glass-bg: rgba(255, 255, 255, 0.65);
+    --glass-border: rgba(255, 255, 255, 0.9);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+    --blur: blur(24px) saturate(180%);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+  }
+  /* 荣耀 MagicOS 流动光效 */
+  body::before, body::after {
+    content: ""; position: fixed; border-radius: 50%; filter: blur(120px); z-index: -1; opacity: 0.6; transition: 0.5s;
+  }
+  body::before { width: 70vw; height: 70vw; background: rgba(255, 230, 100, 0.4); top: -20vw; left: -20vw; }
+  body::after { width: 60vw; height: 60vw; background: rgba(200, 240, 255, 0.6); bottom: -10vw; right: -20vw; }
+
+  /* 全局液态玻璃组件 */
+  .glass {
+    background: var(--glass-bg); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); border-radius: 24px;
+  }
+  .btn {
+    background: var(--honor-yellow); color: #000; border: none; padding: 12px 24px; border-radius: 20px;
+    font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 4px 15px rgba(255, 214, 10, 0.4);
+  }
+  .btn:active { transform: scale(0.95); background: var(--honor-yellow-press); }
+  .btn-ghost { background: rgba(255,255,255,0.5); border: 1px solid var(--glass-border); box-shadow: none; }
+  
+  /* 导航栏 */
+  header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 100; position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
+  header > * { pointer-events: auto; }
+  .brand { font-family: 'Monoton', cursive; font-size: 24px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.3); letter-spacing: 2px; }
+  
+  /* 视图控制 */
+  .view { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; padding-top: 70px; }
+  .view.active { display: flex; flex-direction: column; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* 登录/注册页 */
+  #view-auth { align-items: center; justify-content: center; padding: 20px; }
+  .auth-box { width: 100%; max-width: 360px; padding: 32px 24px; text-align: center; }
+  .auth-box h2 { font-family: 'Monoton', cursive; font-size: 32px; margin-bottom: 24px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+  .input-group { margin-bottom: 16px; text-align: left; }
+  .input-group input { width: 100%; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.6); font-size: 15px; outline: none; transition: 0.3s; }
+  .input-group input:focus { background: #fff; border-color: var(--honor-yellow); box-shadow: 0 0 0 3px rgba(255,214,10,0.2); }
+
+  /* 主界面 (调色) */
+  #view-editor { flex-direction: row; background: #000; }
+  .canvas-area { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  canvas#mainCanvas { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
+  .empty-tip { color: var(--text-muted); text-align: center; }
+  .empty-tip p { margin-bottom: 20px; font-size: 16px; }
+
+  /* 侧边调色板 / 底部调色板 */
+  .panel { 
+    width: 340px; padding: 20px; display: flex; flex-direction: column; gap: 16px; 
+    overflow-y: auto; border-radius: 0; border-left: 1px solid var(--glass-border); border-top: none;
+    position: relative; z-index: 10;
+  }
+  .panel::-webkit-scrollbar { width: 0; }
+  
+  /* 底部工具栏（手机端） */
+  .toolbar { display: flex; overflow-x: auto; gap: 16px; padding: 12px 20px; border-radius: 0; border-top: 1px solid var(--glass-border); background: var(--glass-bg); }
+  .tool-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); cursor: pointer; min-width: 50px; }
+  .tool-item.active { color: var(--honor-yellow); font-weight: 600; }
+  .tool-icon { font-size: 20px; }
+
+  /* 滑块控件 */
+  .control-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .control-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; }
+  .control-header span:last-child { color: var(--text-muted); font-family: monospace; }
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 6px; background: rgba(0,0,0,0.1); border-radius: 3px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid var(--honor-yellow); box-shadow: 0 2px 8px rgba(0,0,0,0.2); cursor: pointer; }
+
+  /* 直方图 */
+  .histogram-wrap { width: 100%; height: 80px; background: rgba(0,0,0,0.3); border-radius: 12px; overflow: hidden; margin-bottom: 16px; position: relative; }
+  canvas#histogramCanvas { width: 100%; height: 100%; display: block; }
+
+  /* 导出面板 */
+  .modal { position: absolute; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .modal.active { display: flex; }
+  .modal-content { width: 90%; max-width: 400px; padding: 24px; }
+  .watermark-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
+  .wm-opt { padding: 12px; text-align: center; border: 2px solid var(--glass-border); border-radius: 12px; cursor: pointer; font-size: 13px; }
+  .wm-opt.active { border-color: var(--honor-yellow); background: rgba(255,214,10,0.1); }
+
+  @media (max-width: 768px) {
+    #view-editor { flex-direction: column; }
+    .canvas-area { flex: 1; }
+    .panel { width: 100%; height: auto; max-height: 50vh; border-left: none; border-top: 1px solid var(--glass-border); border-radius: 24px 24px 0 0; position: absolute; bottom: 0; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .panel.active { transform: translateY(0); }
+    .toolbar { display: flex; position: relative; z-index: 20; }
+  }
+  @media (min-width: 769px) {
+    .toolbar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<header>
+  <div class="brand">LUMIQ·NEO</div>
+  <div id="headerActions"></div>
+</header>
+
+<!-- 登录/注册视图 -->
+<div class="view active" id="view-auth">
+  <div class="auth-box glass">
+    <h2>LUMIQ·NEO</h2>
+    <div class="input-group"><input type="text" id="username" placeholder="请输入账号"></div>
+    <div class="input-group"><input type="password" id="password" placeholder="密码（需含字母和数字）"></div>
+    <div id="authError" style="color:#FF3B30; font-size:12px; margin-bottom:12px; height:16px;"></div>
+    <button class="btn" style="width:100%; margin-bottom:12px;" id="btnLogin">登录</button>
+    <button class="btn btn-ghost" style="width:100%;" id="btnRegister">注册新账号</button>
+  </div>
+</div>
+
+<!-- 主编辑器视图 -->
+<div class="view" id="view-editor">
+  <div class="canvas-area" id="canvasArea">
+    <div class="empty-tip" id="emptyTip">
+      <p>点击下方按钮导入照片开始创作</p>
+      <button class="btn" id="importBtn">导入相册照片</button>
+      <input type="file" id="fileInput" accept="image/*" style="display:none;">
+    </div>
+    <canvas id="mainCanvas"></canvas>
+    <!-- 悬浮对比按钮 -->
+    <button id="compareBtn" style="position:absolute; bottom:20px; padding:10px 20px; border-radius:30px; display:none;" class="glass">按住对比原图</button>
+  </div>
+
+  <!-- 手机底部工具栏 -->
+  <div class="toolbar glass" id="toolbar">
+    <div class="tool-item active" data-panel="adjust"><div class="tool-icon">⚙️</div>调节</div>
+    <div class="tool-item" data-panel="lut"><div class="tool-icon">🎨</div>滤镜</div>
+    <div class="tool-item" data-panel="mask"><div class="tool-icon">👤</div>蒙版</div>
+    <div class="tool-item" data-panel="curve"><div class="tool-icon">📈</div>曲线</div>
+  </div>
+
+  <!-- 调色面板 -->
+  <div class="panel glass" id="sidePanel">
+    <!-- 直方图 -->
+    <div class="histogram-wrap"><canvas id="histogramCanvas"></canvas></div>
+    
+    <div id="panel-adjust" class="panel-content">
+      <div class="control-group">
+        <div class="control-header"><span>曝光</span><span id="val-exposure">0</span></div>
+        <input type="range" id="exposure" min="-100" max="100" value="0">
+      </div>
+      <div class="control-group">
+        <div class="control-header"><span>对比度</span><span id="val-contrast">0</span></div>
+        <input type="range" id="contrast" min="-100" max="100" value="0">
+      </div>
+      <div class="control-group">
+        <div class="control-header"><span>高光</span><span id="val-highlights">0</span></div>
+        <input type="range" id="highlights" min="-100" max="100" value="0">
+      </div>
+      <div class="control-group">
+        <div class="control-header"><span>阴影</span><span id="val-shadows">0</span></div>
+        <input type="range" id="shadows" min="-100" max="100" value="0">
+      </div>
+      <div class="control-group">
+        <div class="control-header"><span>色温</span><span id="val-temperature">0</span></div>
+        <input type="range" id="temperature" min="-100" max="100" value="0">
+      </div>
+    </div>
+
+    <div id="panel-lut" class="panel-content" style="display:none;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <button class="btn btn-ghost lut-btn active" data-lut="none">原图</button>
+        <button class="btn btn-ghost lut-btn" data-lut="fuji">富士清冷</button>
+        <button class="btn btn-ghost lut-btn" data-lut="leica">徕卡德味</button>
+        <button class="btn btn-ghost lut-btn" data-lut="hassy">哈苏自然</button>
+      </div>
+    </div>
+
+    <div id="panel-mask" class="panel-content" style="display:none; text-align:center; color:var(--text-muted);">
+      <p>蒙版功能（线性/径向/画笔）</p>
+      <small>需调用 WebGL，当前版本为演示占位</small>
+    </div>
+    <div id="panel-curve" class="panel-content" style="display:none; text-align:center; color:var(--text-muted);">
+      <p>曲线调整面板</p>
+      <small>支持RGB通道</small>
+    </div>
+  </div>
+</div>
+
+<!-- 导出弹窗 -->
+<div class="modal" id="exportModal">
+  <div class="modal-content glass">
+    <h3 style="margin-top:0; text-align:center;">导出照片</h3>
+    <p style="font-size:13px; color:var(--text-muted); text-align:center;">请选择水印样式</p>
+    <div class="watermark-options">
+      <div class="wm-opt active" data-wm="none">无水印</div>
+      <div class="wm-opt" data-wm="hassy">Hasselblad</div>
+      <div class="wm-opt" data-wm="sony">Sony Alpha</div>
+      <div class="wm-opt" data-wm="canon">Canon EOS</div>
+      <div class="wm-opt" data-wm="apple">iPhone</div>
+    </div>
+    <button class="btn" style="width:100%; margin-top:20px;" id="confirmExport">确认导出</button>
+    <button class="btn btn-ghost" style="width:100%; margin-top:10px;" id="cancelExport">取消</button>
+  </div>
+</div>
+
+<script>
+  // --- 用户系统 ---
+  let currentUser = localStorage.getItem('lumiq_user');
+  const usersDB = JSON.parse(localStorage.getItem('lumiq_users') || '{}');
+
+  function updateAuthNav() {
+    const actions = document.getElementById('headerActions');
+    if (currentUser) {
+      actions.innerHTML = `<span style="font-size:14px; margin-right:10px;">${currentUser}</span><button class="btn" id="btnExport">导出</button>`;
+      document.getElementById('btnExport').onclick = () => document.getElementById('exportModal').classList.add('active');
+    } else {
+      actions.innerHTML = '';
+    }
+  }
+
+  function checkAuth() {
+    if (currentUser) {
+      document.getElementById('view-auth').classList.remove('active');
+      document.getElementById('view-editor').classList.add('active');
+    } else {
+      document.getElementById('view-auth').classList.add('active');
+      document.getElementById('view-editor').classList.remove('active');
+    }
+    updateAuthNav();
+  }
+
+  document.getElementById('btnRegister').onclick = () => {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value;
+    const err = document.getElementById('authError');
+    
+    if (!u || !p) return err.innerText = "账号和密码不能为空";
+    if (!/[a-z]/.test(p) || !/[0-9]/.test(p)) return err.innerText = "密码必须包含字母和数字";
+    if (/(.)\1{2,}/.test(p)) return err.innerText = "不能有连续三个重复字符";
+    if (usersDB[u]) return err.innerText = "该账号已存在";
+
+    usersDB[u] = p;
+    localStorage.setItem('lumiq_users', JSON.stringify(usersDB));
+    err.style.color = "#34C759";
+    err.innerText = "注册成功，请登录";
+  };
+
+  document.getElementById('btnLogin').onclick = () => {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value;
+    const err = document.getElementById('authError');
+    if (usersDB[u] && usersDB[u] === p) {
+      currentUser = u;
+      localStorage.setItem('lumiq_user', u);
+      checkAuth();
+    } else {
+      err.style.color = "#FF3B30";
+      err.innerText = "账号或密码错误";
+    }
+  };
+
+  // --- 调色核心 ---
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const fileInput = document.getElementById('fileInput');
+  let originalImg = null, imgData = null;
+  let currentLut = 'none', isComparing = false;
+  let params = { exposure: 0, contrast: 0, highlights: 0, shadows: 0, temperature: 0 };
+
+  document.getElementById('importBtn').onclick = () => fileInput.click();
+  
+  fileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        originalImg = img;
+        const maxDim = 1500;
+        let scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        document.getElementById('emptyTip').style.display = 'none';
+        canvas.style.display = 'block';
+        document.getElementById('compareBtn').style.display = 'block';
+        document.getElementById('sidePanel').classList.add('active'); // 手机端自动弹出
+        
+        render();
+        drawHistogram();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // 绑定滑块
+  ['exposure', 'contrast', 'highlights', 'shadows', 'temperature'].forEach(id => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      params[id] = parseInt(e.target.value);
+      document.getElementById('val-' + id).innerText = params[id];
+      render();
+      drawHistogram();
+    });
+  });
+
+  // 绑定 LUT
+  document.querySelectorAll('.lut-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.lut-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentLut = btn.dataset.lut;
+      render();
+      drawHistogram();
+    };
+  });
+
+  // 按住对比
+  const compareBtn = document.getElementById('compareBtn');
+  ['mousedown', 'touchstart'].forEach(evt => compareBtn.addEventListener(evt, (e) => {
+    e.preventDefault(); isComparing = true; render();
+  }));
+  ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(evt => compareBtn.addEventListener(evt, () => {
+    isComparing = false; render();
+  }));
+
+  function render() {
+    if (!imgData) return;
+    if (isComparing) { ctx.putImageData(imgData, 0, 0); return; }
+
+    const data = new Uint8ClampedArray(imgData.data);
+    
+    // 参数映射
+    const b = params.exposure * 2.55;
+    const c = (params.contrast + 100) / 100;
+    const temp = params.temperature * 0.3;
+
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i], g = data[i+1], bl = data[i+2];
+
+      // 曝光 & 对比度
+      r += b; g += b; bl += b;
+      r = (r - 128) * c + 128; g = (g - 128) * c + 128; bl = (bl - 128) * c + 128;
+      
+      // 色温
+      r += temp; bl -= temp;
+
+      // LUT 模拟
+      if (currentLut === 'fuji') {
+        r = r * 0.95; g = g * 1.02 + 5; bl = bl * 1.02 + 5;
+      } else if (currentLut === 'leica') {
+        r = r * 1.05 + 10; g = g * 0.98; bl = bl * 0.9;
+      } else if (currentLut === 'hassy') {
+        r = r * 0.98; g = g * 1.01; bl = bl * 1.01;
+      }
+
+      data[i] = r; data[i+1] = g; data[i+2] = bl;
+    }
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width; tempCanvas.height = canvas.height;
+    tempCanvas.getContext('2d').putImageData(new ImageData(data, canvas.width, canvas.height), 0, 0);
+    ctx.drawImage(tempCanvas, 0, 0);
+  }
+
+  function drawHistogram() {
+    const hCanvas = document.getElementById('histogramCanvas');
+    const hCtx = hCanvas.getContext('2d');
+    const rect = hCanvas.getBoundingClientRect();
+    hCanvas.width = rect.width; hCanvas.height = rect.height;
+
+    const currentData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const rH = new Array(256).fill(0), gH = new Array(256).fill(0), bH = new Array(256).fill(0);
+    
+    for (let i = 0; i < currentData.length; i += 4) {
+      rH[currentData[i]]++; gH[currentData[i+1]]++; bH[currentData[i+2]]++;
+    }
+    
+    const max = Math.max(...rH, ...gH, ...bH) || 1;
+    const drawCh = (arr, color) => {
+      hCtx.beginPath(); hCtx.strokeStyle = color; hCtx.lineWidth = 1.5;
+      for (let x = 0; x < 256; x++) {
+        const px = (x / 255) * hCanvas.width;
+        const py = hCanvas.height - (arr[x] / max) * hCanvas.height;
+        x === 0 ? hCtx.moveTo(px, py) : hCtx.lineTo(px, py);
+      }
+      hCtx.stroke();
+    };
+    hCtx.clearRect(0, 0, hCanvas.width, hCanvas.height);
+    drawCh(rH, 'rgba(255,59,48,0.8)'); 
+    drawCh(gH, 'rgba(52,199,89,0.8)'); 
+    drawCh(bH, 'rgba(0,122,255,0.8)');
+  }
+
+  // --- 工具栏面板切换 (手机端) ---
+  const toolbar = document.getElementById('toolbar');
+  if (toolbar) {
+    document.querySelectorAll('.tool-item').forEach(item => {
+      item.onclick = () => {
+        document.querySelectorAll('.tool-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        const panelType = item.dataset.panel;
+        
+        document.querySelectorAll('.panel-content').forEach(p => p.style.display = 'none');
+        document.getElementById('panel-' + panelType).style.display = 'block';
+        
+        if (panelType === 'mask' || panelType === 'curve') {
+          document.getElementById('sidePanel').classList.add('active');
+        }
+      };
+    });
+  }
+
+  // --- 导出系统 ---
+  let selectedWm = 'none';
+  document.querySelectorAll('.wm-opt').forEach(opt => {
+    opt.onclick = () => {
+      document.querySelectorAll('.wm-opt').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      selectedWm = opt.dataset.wm;
+    };
+  });
+
+  document.getElementById('cancelExport').onclick = () => document.getElementById('exportModal').classList.remove('active');
+  
+  document.getElementById('confirmExport').onclick = () => {
+    const out = document.createElement('canvas');
+    out.width = canvas.width; out.height = canvas.height;
+    const octx = out.getContext('2d');
+    octx.drawImage(canvas, 0, 0);
+
+    if (selectedWm !== 'none') {
+      const size = Math.max(16, out.width * 0.03);
+      octx.font = `600 ${size}px -apple-system, sans-serif`;
+      octx.fillStyle = 'rgba(255,255,255,0.85)';
+      octx.textAlign = 'right'; octx.textBaseline = 'bottom';
+      
+      let text = '';
+      if (selectedWm === 'hassy') text = 'HASSELBLAD';
+      if (selectedWm === 'sony') text = 'SONY α7';
+      if (selectedWm === 'canon') text = 'Canon EOS';
+      if (selectedWm === 'apple') text = 'iPhone 15 Pro';
+      
+      // 背景阴影增加可读性
+      octx.shadowColor = 'rgba(0,0,0,0.5)'; octx.shadowBlur = 4;
+      octx.fillText(text, out.width - size, out.height - size);
+    }
+
+    const a = document.createElement('a');
+    a.download = `LUMIQ_NEO_${Date.now()}.jpg`;
+    a.href = out.toDataURL('image/jpeg', 0.95);
+    a.click();
+    document.getElementById('exportModal').classList.remove('active');
+  };
+
+  // 初始化
+  checkAuth();
+</script>
+</body>
+</html>
